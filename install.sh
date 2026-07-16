@@ -217,7 +217,7 @@ cat <<DONE
       ${SCHEME}://${DOMAIN}/setup
 
   There you'll create the admin account and enter your license key
-  (buy one at ${VENDOR}/products/${PRODUCT}). The database password
+  (buy one at ${VENDOR}/products/${STORE_SLUG:-$PRODUCT}). The database password
   is stored in ${APP_DIR}/.env.
 
 DONE

@@ -14,12 +14,12 @@ Then open `https://your.domain/setup`.
 
 | Product | Command argument | Docs | Status |
 |---------|------------------|------|--------|
-| **BackupMGR** — self-hosted backup platform | `backup-manager` | [docs](docs/backup-manager.md) | ✅ available |
-| **LicenseMGR** — licensing / entitlement server | `licensemanager` | — | 🔜 packaging |
-| **MonitorMGR** — monitoring & status pages | `monitormanager` | — | 🔜 packaging |
-| **StorageMGR** — S3-compatible object storage | `storagemanager` | — | 🔜 packaging |
-| **CertMGR** — certificate management | `certmanager` | — | 🔜 packaging |
-| **SyncMGR** — continuous directory sync | `syncmgr` | — | 🔜 packaging |
+| **BackupMGR** — self-hosted backup platform | `backup-mgr` | [docs](docs/backup-manager.md) | ✅ available |
+| **LicenseMGR** — licensing / entitlement server | `license-mgr` | — | ✅ available |
+| **MonitorMGR** — monitoring & status pages | `monitor-mgr` | — | ✅ available |
+| **StorageMGR** — S3-compatible object storage | `storage-mgr` | — | ✅ available |
+| **CertMGR** — certificate management | `cert-mgr` | — | ✅ available |
+| **SyncMGR** — continuous directory sync | `sync-mgr` | — | ✅ available |
 
 ## Requirements
 
