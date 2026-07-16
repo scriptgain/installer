@@ -1,0 +1,4 @@
+/install.sh
+  Content-Type: text/x-shellscript; charset=utf-8
+/products/*
+  Content-Type: text/plain; charset=utf-8
