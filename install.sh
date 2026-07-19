@@ -12,7 +12,7 @@
 #
 # Idempotent: safe to re-run. Tested: Ubuntu 22.04/24.04, Debian 12.
 #
-# Products: backup-manager  licensemanager  monitormanager  storagemanager  certmanager  syncmgr
+# Products: backup-mgr  license-mgr  monitor-mgr  storage-mgr  cert-mgr  sync-mgr
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
@@ -41,7 +41,7 @@ command -v apt-get >/dev/null || die "This installer targets Debian/Ubuntu (apt)
 # Defines: PRODUCT_NAME, PHP_VER, DB_NAME, DB_USER, APP_DIR, RELEASE_URL,
 #          BOOTSTRAP_CMD (optional artisan command run after migrate).
 # ---------------------------------------------------------------------------
-SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo /tmp)"
+SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo /tmp)"
 MANIFEST="$(mktemp)"
 if curl -fsSL "${MIRROR}/products/${PRODUCT}.env" -o "$MANIFEST" 2>/dev/null; then :;
 elif [ -f "${SRC_DIR}/products/${PRODUCT}.env" ]; then cp "${SRC_DIR}/products/${PRODUCT}.env" "$MANIFEST";
@@ -147,6 +147,7 @@ fi
 "php${PHP_VER}" artisan route:cache
 
 log "Setting permissions"
+mkdir -p "$APP_DIR/storage/framework/cache/data" "$APP_DIR/storage/framework/sessions" "$APP_DIR/storage/framework/views" "$APP_DIR/storage/logs" "$APP_DIR/bootstrap/cache"
 chown -R www-data:www-data "$APP_DIR"
 find "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" -type d -exec chmod 775 {} \;
 
@@ -194,7 +195,7 @@ ExecStart=/usr/bin/php${PHP_VER} ${APP_DIR}/artisan queue:work --sleep=3 --tries
 WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
-systemctl enable --now "${PRODUCT}-queue"
+systemctl enable --now "${PRODUCT}-queue" || echo "queue worker did not start; check: systemctl status ${PRODUCT}-queue"
 
 # ---------------------------------------------------------------------------
 # Let's Encrypt (optional)
