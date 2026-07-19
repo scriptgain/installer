@@ -179,6 +179,12 @@ NGINX
 ln -sf "/etc/nginx/sites-available/${PRODUCT}.conf" "/etc/nginx/sites-enabled/${PRODUCT}.conf"
 nginx -t && systemctl reload nginx
 
+# Open web ports if ufw is active (the app + Let's Encrypt need 80/443 reachable).
+if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+  ufw allow 80/tcp  >/dev/null 2>&1 || true
+  ufw allow 443/tcp >/dev/null 2>&1 || true
+fi
+
 # ---------------------------------------------------------------------------
 # Scheduler (cron) + queue worker (systemd)
 # ---------------------------------------------------------------------------
