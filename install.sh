@@ -113,6 +113,9 @@ else
 fi
 cd "$APP_DIR"
 composer install --no-dev --optimize-autoloader --no-interaction
+# Framework cache dirs must exist before config:cache (config/view.php realpath()s
+# storage/framework/views; a missing dir caches an empty path -> runtime 500).
+mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
 
 # ---------------------------------------------------------------------------
 # Environment
@@ -180,8 +183,9 @@ nginx -t && systemctl reload nginx
 # Scheduler (cron) + queue worker (systemd)
 # ---------------------------------------------------------------------------
 log "Installing scheduler + queue worker"
-( crontab -l 2>/dev/null | grep -v "artisan schedule:run.*${APP_DIR}" ; \
-  echo "* * * * * cd ${APP_DIR} && php${PHP_VER} artisan schedule:run >> /dev/null 2>&1" ) | crontab -
+CRON_LINE="* * * * * cd ${APP_DIR} && php${PHP_VER} artisan schedule:run >> /dev/null 2>&1"
+NEW_CRON="$( (crontab -l 2>/dev/null || true) | grep -vF "artisan schedule:run" || true; echo "$CRON_LINE" )"
+printf '%s\n' "$NEW_CRON" | crontab - || true
 cat > "/etc/systemd/system/${PRODUCT}-queue.service" <<UNIT
 [Unit]
 Description=${PRODUCT_NAME:-$PRODUCT} queue worker
