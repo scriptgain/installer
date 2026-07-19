@@ -97,6 +97,7 @@ mkdir -p "$APP_DIR"
 if [ -n "${REPO:-}" ]; then
   log "Cloning application from ${REPO} (${REF:-main})"
   if [ -d "$APP_DIR/.git" ]; then
+    git config --global --add safe.directory "$APP_DIR"
     git -C "$APP_DIR" fetch --depth 1 origin "${REF:-main}"
     git -C "$APP_DIR" reset --hard "origin/${REF:-main}"
   else
