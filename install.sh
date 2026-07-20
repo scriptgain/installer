@@ -190,7 +190,10 @@ fi
 # ---------------------------------------------------------------------------
 log "Installing scheduler + queue worker"
 CRON_LINE="* * * * * cd ${APP_DIR} && php${PHP_VER} artisan schedule:run >> /dev/null 2>&1"
-NEW_CRON="$( (crontab -l 2>/dev/null || true) | grep -vF "artisan schedule:run" || true; echo "$CRON_LINE" )"
+# Match on this product's APP_DIR, not on "artisan schedule:run": several
+# ScriptGain products can share a host, and a broad match would strip their
+# scheduler lines too.
+NEW_CRON="$( (crontab -l 2>/dev/null || true) | grep -vF "cd ${APP_DIR} &&" || true; echo "$CRON_LINE" )"
 printf '%s\n' "$NEW_CRON" | crontab - || true
 cat > "/etc/systemd/system/${PRODUCT}-queue.service" <<UNIT
 [Unit]
