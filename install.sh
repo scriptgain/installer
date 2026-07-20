@@ -26,6 +26,7 @@ VENDOR="${VENDOR:-https://scriptgain.com}"             # licensing API / storefr
 DOMAIN="${DOMAIN:-}"
 SSL="${SSL:-0}"
 EMAIL="${EMAIL:-}"
+S3_DOMAIN="${S3_DOMAIN:-}"    # dedicated S3 API hostname (StorageMGR); e.g. s3.example.com
 
 log()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 die()  { printf '\n\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
@@ -136,6 +137,11 @@ set_env SESSION_DRIVER database
 set_env QUEUE_CONNECTION database
 set_env CACHE_STORE database
 set_env LICENSE_ENDPOINT "${VENDOR}/v1"
+# StorageMGR: serve the S3 API at the dedicated host's root so aws/mc connect
+# with --endpoint-url https://${S3_DOMAIN} (no path component).
+if [ "${S3_ENDPOINT:-0}" = "1" ] && [ -n "$S3_DOMAIN" ]; then
+  set_env STORAGE_S3_DOMAIN "$S3_DOMAIN"
+fi
 grep -q "^APP_KEY=base64" .env || "php${PHP_VER}" artisan key:generate --force
 
 # ---------------------------------------------------------------------------
@@ -177,6 +183,40 @@ server {
 }
 NGINX
 ln -sf "/etc/nginx/sites-available/${PRODUCT}.conf" "/etc/nginx/sites-enabled/${PRODUCT}.conf"
+
+# ---------------------------------------------------------------------------
+# S3 API endpoint (StorageMGR). The manifest sets S3_ENDPOINT=1; the operator
+# supplies S3_DOMAIN=s3.example.com. S3 clients (aws, mc) need the API served
+# at the ROOT of a hostname, not under a path, so this is a separate vhost.
+#
+# The three settings below are load-bearing and each cost real debugging:
+#   - no "index index.php": nginx would answer PUT/DELETE with 405 before PHP.
+#   - client_max_body_size 0: object uploads are unbounded.
+#   - do NOT set fastcgi_request_buffering off: it delivers empty bodies to PHP
+#     and every upload silently stores zero bytes.
+# ---------------------------------------------------------------------------
+if [ "${S3_ENDPOINT:-0}" = "1" ] && [ -n "$S3_DOMAIN" ]; then
+  log "Configuring S3 API endpoint at ${S3_DOMAIN}"
+  cat > "/etc/nginx/sites-available/${PRODUCT}-s3.conf" <<NGINX
+server {
+    listen 80;
+    server_name ${S3_DOMAIN};
+    root ${APP_DIR}/public;
+    charset utf-8;
+    client_max_body_size 0;
+    location / { try_files /nonexistent /index.php\$is_args\$args; }
+    location ~ \.php\$ {
+        fastcgi_pass unix:/run/php/php${PHP_VER}-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
+        fastcgi_read_timeout 3600;
+        include fastcgi_params;
+    }
+    location ~ /\.(?!well-known).* { deny all; }
+}
+NGINX
+  ln -sf "/etc/nginx/sites-available/${PRODUCT}-s3.conf" "/etc/nginx/sites-enabled/${PRODUCT}-s3.conf"
+fi
+
 nginx -t && systemctl reload nginx
 
 # Open web ports if ufw is active (the app + Let's Encrypt need 80/443 reachable).
@@ -217,8 +257,14 @@ systemctl enable --now "${PRODUCT}-queue" || echo "queue worker did not start; c
 if [ "$SSL" = "1" ]; then
   log "Issuing Let's Encrypt certificate"
   apt-get install -y certbot python3-certbot-nginx
-  certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos ${EMAIL:+-m "$EMAIL"} --redirect \
-    || echo "certbot failed; run 'certbot --nginx -d ${DOMAIN}' manually once DNS points here."
+  # Cover the S3 hostname in the same cert when present, so both the console and
+  # the S3 API get HTTPS in one shot.
+  CERT_DOMAINS=(-d "$DOMAIN")
+  if [ "${S3_ENDPOINT:-0}" = "1" ] && [ -n "$S3_DOMAIN" ]; then
+    CERT_DOMAINS+=(-d "$S3_DOMAIN")
+  fi
+  certbot --nginx "${CERT_DOMAINS[@]}" --non-interactive --agree-tos ${EMAIL:+-m "$EMAIL"} --redirect \
+    || echo "certbot failed; run 'certbot --nginx ${CERT_DOMAINS[*]}' manually once DNS points here."
 fi
 
 SCHEME="http"; [ "$SSL" = "1" ] && SCHEME="https"
@@ -234,5 +280,22 @@ cat <<DONE
   There you'll create the admin account and enter your license key
   (buy one at ${VENDOR}/products/${STORE_SLUG:-$PRODUCT}). The database password
   is stored in ${APP_DIR}/.env.
-
 DONE
+
+if [ "${S3_ENDPOINT:-0}" = "1" ] && [ -n "$S3_DOMAIN" ]; then
+cat <<S3DONE
+
+  S3 API endpoint: ${SCHEME}://${S3_DOMAIN}
+  Point an S3 client at it once you've created an access key in the console:
+
+      aws --endpoint-url ${SCHEME}://${S3_DOMAIN} s3 ls
+      mc alias set myhost ${SCHEME}://${S3_DOMAIN} ACCESS_KEY SECRET_KEY
+
+  Notes:
+    - ${S3_DOMAIN} must resolve to this server (its own DNS A record).
+    - Do NOT put the S3 hostname behind a proxying CDN (e.g. Cloudflare's
+      orange cloud): it strips ETag headers and breaks multipart uploads.
+    - The AWS CLI needs path-style addressing: set 'addressing_style = path'
+      under [default] s3 in ~/.aws/config.
+S3DONE
+fi
