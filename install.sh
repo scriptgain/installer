@@ -12,7 +12,7 @@
 #
 # Idempotent: safe to re-run. Tested: Ubuntu 22.04/24.04, Debian 12.
 #
-# Products: backup-mgr  guard-mgr  license-mgr  monitor-mgr  storage-mgr  sync-mgr
+# Products: backup-mgr  guard-mgr  license-mgr  monitor-mgr  municipal-mgr  shop-mgr  storage-mgr  sync-mgr
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
