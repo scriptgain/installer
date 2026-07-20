@@ -210,6 +210,11 @@ server {
         fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
         fastcgi_read_timeout 3600;
         include fastcgi_params;
+        # Multipart parts routinely exceed the stock 8M post_max_size (aws uses
+        # 8M chunks, mc 16M), which silently truncates them. Lift the limit for
+        # the S3 endpoint only; objects are streamed to disk, not held in memory.
+        fastcgi_param PHP_VALUE "post_max_size=0
+upload_max_filesize=5120M";
     }
     location ~ /\.(?!well-known).* { deny all; }
 }
